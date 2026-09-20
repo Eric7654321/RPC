@@ -1,10 +1,10 @@
-# mini RPC
+# Mini RPC
 
-一個 C++17 的教學用 RPC 雛形。`call()` 在程式裡像本地函式呼叫，實際上會經過序列化、TCP、服務分派與回應配對。
+以 C++17、Linux epoll 與 Protocol Buffers 實作的迷你 RPC 框架。專案包含 TCP 訊框編解碼、服務方法分派、同步呼叫介面、請求與回應配對、逾時處理、本地服務設定及簡易連線池。
 
-## 執行
+## 執行範例
 
-需要 CMake、C++17 編譯器與 Protobuf 3（含 `protoc`）。
+需要 CMake、支援 C++17 的編譯器，以及 Protobuf 3 開發套件與 `protoc`。
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -13,40 +13,49 @@ ctest --test-dir build --output-on-failure
 ./build/add_demo
 ```
 
-範例輸出：`AddService.Add(1, 2) = 3`。
+範例在本機啟動服務，註冊 `AddService.Add`，再由客戶端呼叫：
 
-## 資料怎麼走
+```cpp
+RpcClient client("127.0.0.1", server.port());
+AddServiceStub addService(client);
+int sum = addService.add(1, 2);  // 3
+```
 
-1. Client 將方法名與 Protobuf 參數放進 `RequestEnvelope`。
-2. Codec 在外面加上 10-byte header：`type`（2 bytes）、`seq`（4 bytes）、`bodyLen`（4 bytes）；整數皆為 network byte order，body 上限 64 KiB。
-3. epoll server 為每條連線保留 input/output Buffer。收到完整 frame 後交給 `Dispatcher`。
-4. `Dispatcher` 用方法名找到 handler，解析具型別的 Protobuf 參數，再包成 `ResponseEnvelope`。回應沿用 request 的 `seq`。
-5. Client 的 reader thread 在該連線的 pending map 內依 `seq` 找到等待的 future。逾時後的晚到回應會被丟棄。
+`AddServiceStub` 將整數參數轉成 Protobuf request，呼叫 RPC client，並從 response 取出結果。完整程式位於 [`examples/add_demo.cpp`](examples/add_demo.cpp)。
 
-`proto/rpc.proto` 定義框架的 wire envelope；`proto/add.proto` 是示範服務。要加服務，先定義 request/response message，再以 `registerMethod<Request, Response>()` 註冊 handler。`examples/add_demo.cpp` 有完整可執行範例。
+## 架構
 
-原本想要的 `client.call("AddService.Add", 1, 2)` 需要一層由服務定義產生或手寫的 stub，才知道兩個整數該如何轉成 Protobuf message。框架提供具型別的 `call<Request, Response>(method, request)`；範例中的 `AddServiceStub::add(1, 2)` 展示手寫 stub 如何包住它。
+1. Client 將方法名與 Protobuf 參數序列化為 `RequestEnvelope`。
+2. Codec 加上 10-byte 訊框標頭：`type`（2 bytes）、`seq`（4 bytes）、`bodyLen`（4 bytes），整數採 network byte order，body 上限為 64 KiB。
+3. epoll server 為每條 TCP 連線保留輸入與輸出 buffer，組出完整訊框後交給 `Dispatcher`。
+4. `Dispatcher` 依 `服務名.方法名` 查找 handler，解析參數並封裝 `ResponseEnvelope`；回應沿用請求的 `seq`。
+5. Client 以 `seq` 對應該連線上等待的 `std::promise`／`std::future`。逾時後到達的回應會被忽略。
+
+[`proto/rpc.proto`](proto/rpc.proto) 定義 RPC envelope；[`proto/add.proto`](proto/add.proto) 定義範例服務的參數與結果。新服務可定義自己的 Protobuf message，並以 `Dispatcher::registerMethod<Request, Response>()` 註冊 handler。框架提供具型別的 `RpcClient::call<Request, Response>()`；服務專用 stub 可在其上封裝較簡潔的介面。
 
 ## 本地服務設定與連線池
 
-`config/services.example.conf` 示範一行一個服務：`服務名 IPv4 port`。`ServiceRegistry::loadFile(path)` 讀入設定，`RpcClientPool` 根據方法名的服務前綴選位址，並為各服務按需建立最多兩條長連線，輪流使用。例如：
+[`config/services.example.conf`](config/services.example.conf) 以 `服務名 IPv4 port` 格式設定服務位址。`ServiceRegistry` 讀取設定後，`RpcClientPool` 依方法名的服務前綴選擇位址，並為每個服務按需建立指定數量的長連線，輪流使用。
 
 ```cpp
 auto registry = ServiceRegistry::loadFile("config/services.example.conf");
 RpcClientPool pool(std::move(registry), 2);
-auto result = pool.call<mini_rpc_test::AddRequest, mini_rpc_test::AddResponse>(
+
+mini_rpc_test::AddRequest request;
+request.set_a(1);
+request.set_b(2);
+auto response = pool.call<mini_rpc_test::AddRequest, mini_rpc_test::AddResponse>(
     "AddService.Add", request);
 ```
 
-設定檔中的 `9000` 是示例埠；實際服務必須在該埠啟動。`rpc_client_pool_test` 會用測試服務的實際埠產生臨時設定檔，驗證設定讀取、路由及多次呼叫。這是靜態本地設定，不會探測新節點，也不會自動刷新壞掉的連線。
+設定檔中的埠號需與執行中的服務一致。`rpc_client_pool_test` 以實際監聽埠建立臨時設定檔，驗證設定讀取、服務路由與多次呼叫。
 
-只有呼叫方能確認操作可重複執行時，才使用 `pool.callIdempotent<Request, Response>(method, request, maxAttempts, timeout)`。它只在 `RpcTimeout` 後重試；每次嘗試各有自己的逾時，最長等待時間可能接近 `maxAttempts × timeout`。例如 Add 是純計算，執行兩次仍得到相同結果。這個 API 不提供 server 去重，也不保證每個操作只執行一次。
+## 呼叫語意與範圍
 
-## 目前語意
+- 同一條連線可同時處理多個未完成呼叫。`seq` 是連線內的 request ID，負責配對請求與回應；它不是跨連線的操作識別碼。
+- 預設逾時為 3 秒，涵蓋送出與等待回應。逾時只表示客戶端未在期限內取得結果，不能據此判斷服務端是否執行。
+- 一般 `call()` 不自動重試。對可重複執行的冪等操作，可明確使用 `RpcClientPool::callIdempotent()` 在逾時後重試；每次嘗試各有自己的逾時。此介面不提供服務端去重或「恰好執行一次」保證。
+- 送出途中若失敗，client 會關閉該連線，避免後續請求接在不完整的訊框後面。連線中斷、格式錯誤與 handler 錯誤會回報失敗。
+- 目前僅支援數字 IPv4 位址與本機 loopback 服務。服務位址由靜態設定檔提供；連線池不會自動替換失效連線。Server handler 在單一 epoll event loop 執行，耗時方法會阻塞其他連線。
 
-- 同一條連線可以同時有多個未完成呼叫；每個呼叫各有 `seq` 作為該連線內的 request ID。timeout 從開始呼叫算起，涵蓋送出與等待回應。
-- 若送出途中失敗，client 關閉連線，因為 server 可能已收到半個 frame；完整送出後才逾時，晚到回應依 request ID 丟棄。
-- TCP 斷線、壞 frame、遠端 handler 錯誤分別回報失敗。逾時不代表遠端沒有執行：只是 client 等不到結果。
-- 一般 `call()` 不自動重試；只有明確呼叫 `callIdempotent()` 才會在逾時後重送。對可能改變狀態的方法，重試可能使操作執行兩次。`seq` 只用來配對單一連線上的回應：同一操作換連線重試會取得不同 `seq`，不同操作也可能有相同 `seq`。若要跨連線去重，需要獨立且在重試時保持不變的操作 ID。
-- Server handler 目前在單一 epoll event loop 執行，耗時 handler 會阻塞其他連線。handler 仍在程式內註冊；本地設定檔只記錄 client 要連的服務位址，尚無動態服務發現或跨節點部署。
-- 目前只支援數字 IPv4 地址，server 綁定 loopback，供本機學習與測試。
+測試涵蓋 buffer、訊框的半包與黏包、epoll 傳輸、方法分派、並行呼叫配對、逾時回應，以及服務設定與連線池。
