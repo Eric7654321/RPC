@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package mini_rpc;
+
+// TCP frame 的 body。seq 保留在 10-byte frame header，不在這裡重複。
+message RequestEnvelope {
+  string method = 1;
+  bytes payload = 2;
+}
+
+message ResponseEnvelope {
+  bytes payload = 1;
+  string error_code = 2;
+  string error_message = 3;
+}

@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package mini_rpc_test;
+
+message AddRequest {
+  int32 a = 1;
+  int32 b = 2;
+}
+
+message AddResponse {
+  int32 sum = 1;
+}
