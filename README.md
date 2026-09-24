@@ -13,6 +13,12 @@ ctest --test-dir build --output-on-failure
 ./build/add_demo
 ```
 
+程式碼使用根目錄的 [`.clang-format`](.clang-format)（4 空格縮排、100 字元行寬）。安裝 `clang-format` 後，可格式化單一檔案：
+
+```bash
+clang-format -i src/rpc_client.cpp
+```
+
 範例在本機啟動服務，註冊 `AddService.Add`，再由客戶端呼叫：
 
 ```cpp
