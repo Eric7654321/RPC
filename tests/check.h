@@ -3,7 +3,7 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
-#include "buffer.h"
+#include "mini_rpc/buffer.h"
 
 inline void expectContent(const Buffer& b, const std::string& expect, int line) {
     std::string actual(b.peek(), b.readableBytes());

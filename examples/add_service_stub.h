@@ -1,7 +1,7 @@
 #pragma once
 
 #include "add.pb.h"
-#include "rpc_client.h"
+#include "mini_rpc/rpc_client.h"
 
 #include <chrono>
 #include <cstdint>

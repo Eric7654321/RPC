@@ -1,8 +1,8 @@
 #include "add.pb.h"
 #include "check.h"
-#include "dispatcher.h"
-#include "epoll_server.h"
-#include "rpc_client_pool.h"
+#include "mini_rpc/dispatcher.h"
+#include "mini_rpc/epoll_server.h"
+#include "mini_rpc/rpc_client_pool.h"
 
 #include <cstdio>
 #include <atomic>

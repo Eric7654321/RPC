@@ -20,7 +20,7 @@ add_library(rpc_core
     ${RPC_PROTO_SRCS}
     ${RPC_PROTO_HDRS}
 )
-target_include_directories(rpc_core PUBLIC src ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(rpc_core PUBLIC include ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(rpc_core PUBLIC protobuf::libprotobuf)
 
 enable_testing()

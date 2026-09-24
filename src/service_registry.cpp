@@ -1,4 +1,4 @@
-#include "service_registry.h"
+#include "mini_rpc/service_registry.h"
 
 #include <arpa/inet.h>
 #include <fstream>

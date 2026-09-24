@@ -1,7 +1,7 @@
 #include "add.pb.h"
-#include "dispatcher.h"
-#include "epoll_server.h"
-#include "rpc_client.h"
+#include "mini_rpc/dispatcher.h"
+#include "mini_rpc/epoll_server.h"
+#include "mini_rpc/rpc_client.h"
 #include "add_service_stub.h"
 
 #include <iostream>

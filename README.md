@@ -23,6 +23,16 @@ int sum = addService.add(1, 2);  // 3
 
 `AddServiceStub` 將整數參數轉成 Protobuf request，呼叫 RPC client，並從 response 取出結果。完整程式位於 [`examples/add_demo.cpp`](examples/add_demo.cpp)。
 
+## 目錄結構
+
+| 目錄 | 內容 |
+|---|---|
+| `include/mini_rpc/` | 框架的公開標頭；使用時以 `#include "mini_rpc/rpc_client.h"` 引入 |
+| `src/` | 與公開標頭同名的 `.cpp` 實作 |
+| `proto/` | RPC 協定與範例服務的 Protobuf 定義；產生的 C++ 檔案放在 `build/` |
+| `examples/` | 可執行的 Add 範例與該範例專用的 stub |
+| `tests/` | 各元件測試與測試專用的 `check.h` |
+
 ## 架構
 
 1. Client 將方法名與 Protobuf 參數序列化為 `RequestEnvelope`。

@@ -1,6 +1,6 @@
-#include "dispatcher.h"
-#include "epoll_server.h"
-#include "rpc_client.h"
+#include "mini_rpc/dispatcher.h"
+#include "mini_rpc/epoll_server.h"
+#include "mini_rpc/rpc_client.h"
 #include "add.pb.h"
 #include "check.h"
 

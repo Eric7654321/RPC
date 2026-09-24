@@ -1,7 +1,7 @@
 #pragma once
 
-#include "rpc_client.h"
-#include "service_registry.h"
+#include "mini_rpc/rpc_client.h"
+#include "mini_rpc/service_registry.h"
 
 #include <chrono>
 #include <cstddef>

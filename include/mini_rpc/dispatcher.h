@@ -1,6 +1,6 @@
 #pragma once
 
-#include "codec.h"
+#include "mini_rpc/codec.h"
 
 #include <functional>
 #include <stdexcept>
